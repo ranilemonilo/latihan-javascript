@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Todo App</title>
+
+    <!-- Bootstrap CSS & Icons -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css"
+      rel="stylesheet"
+    />
+
+    <!-- SortableJS -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+
+    <style>
+      :root {
+        --card-radius: 14px;
+        --accent: #0d6efd;
+      }
+      body {
+        background: linear-gradient(180deg, #f6f9ff 0%, #fff 60%);
+        font-family: Inter, "Segoe UI", system-ui, -apple-system,
+          "Helvetica Neue", sans-serif;
+        transition: background 0.25s ease, color 0.25s ease;
+      }
+      body.dark-mode {
+        background: linear-gradient(180deg, #071329 0%, #071827 60%);
+        color: #e8f0ff;
+      }
+      .app-hero {
+        background: linear-gradient(90deg, var(--accent), #5ad7ff);
+        color: white;
+        border-radius: var(--card-radius);
+        padding: 22px;
+        box-shadow: 0 10px 30px rgba(13, 110, 253, 0.12);
+      }
+      .card.main {
+        border-radius: var(--card-radius);
+        box-shadow: 0 8px 28px rgba(16, 24, 40, 0.06);
+        transition: background 0.25s, color 0.25s;
+      }
+      body.dark-mode .card.main {
+        background: #071827;
+        color: #e8f0ff;
+        box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6);
+      }
+      .list-group-item {
+        border: none;
+        border-radius: 10px;
+        margin-bottom: 8px;
+        transition: transform 0.12s ease, background 0.18s ease;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+      }
+      .list-group-item:hover {
+        transform: translateY(-3px);
+      }
+      .drag-handle {
+        cursor: grab;
+        color: #9aa8c6;
+      }
+      body.dark-mode .drag-handle {
+        color: #8297b6;
+      }
+      .todo-actions {
+        opacity: 0;
+        transition: opacity 0.14s ease;
+      }
+      .list-group-item:hover .todo-actions {
+        opacity: 1;
+      }
+      .small-muted {
+        font-size: 0.85rem;
+        color: #6b7280;
+      }
+      body.dark-mode .small-muted {
+        color: #9aa7bf;
+      }
+
+      /* Animations */
+      @keyframes slideIn {
+        from {
+          transform: translateY(-12px);
+          opacity: 0;
+        }
+        to {
+          transform: translateY(0);
+          opacity: 1;
+        }
+      }
+      .animate-in {
+        animation: slideIn 0.42s cubic-bezier(0.2, 0.9, 0.25, 1);
+      }
+
+      @keyframes shrinkOut {
+        0% {
+          opacity: 1;
+          transform: scale(1);
+          height: auto;
+          margin-bottom: 8px;
+        }
+        100% {
+          opacity: 0;
+          transform: scale(0.88);
+          height: 0;
+          margin-bottom: 0;
+          padding: 0;
+        }
+      }
+      .animate-out {
+        animation: shrinkOut 0.32s ease forwards;
+      }
+
+      @keyframes bounce {
+        0% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.08);
+        }
+        100% {
+          transform: scale(1);
+        }
+      }
+      .bounce {
+        animation: bounce 0.26s ease;
+      }
+
+      .form-control:focus,
+      .btn:focus {
+        box-shadow: 0 6px 20px rgba(13, 110, 253, 0.08);
+        outline: none;
+      }
+
+      /* responsive tweaks */
+      @media (max-width: 600px) {
+        .app-hero {
+          padding: 16px;
+          text-align: center;
+        }
+        .hero-title {
+          font-size: 1.05rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container py-4">
+      <!-- Hero -->
+      <div
+        class="app-hero mb-4 d-flex align-items-center justify-content-between"
+      >
+        <div>
+          <h4 class="mb-1 hero-title">
+            <i class="bi bi-journal-check"></i> Todo App
+          </h4>
+          <div class="small">Kelola tugasmu sekarang!</div>
+        </div>
+        <div>
+          <button id="toggleMode" class="btn btn-sm btn-outline-light">
+            <i class="bi bi-moon"></i> Mode
+          </button>
+        </div>
+      </div>
+
+      <!-- Main card -->
+      <div class="card main p-3">
+        <div class="card-body">
+          <!-- Form + Search -->
+          <div class="row g-2 align-items-center mb-3">
+            <div class="col-md-6">
+              <form id="formData" class="input-group">
+                <input
+                  id="inputTodo"
+                  name="todo"
+                  class="form-control"
+                  placeholder="Apa rencanamu hari ini?"
+                  aria-label="todo"
+                  autocomplete="off"
+                />
+                <button class="btn btn-primary" type="submit">
+                  <i class="bi bi-plus-lg"></i> Tambah
+                </button>
+              </form>
+            </div>
+
+            <div class="col-md-6">
+              <div class="input-group">
+                <span class="input-group-text"
+                  ><i class="bi bi-search"></i
+                ></span>
+                <input
+                  id="searchInput"
+                  class="form-control"
+                  placeholder="Cari todo..."
+                  aria-label="search"
+                />
+                <button
+                  id="clearSearch"
+                  class="btn btn-outline-secondary"
+                  title="Bersihkan pencarian"
+                >
+                  <i class="bi bi-x-lg"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Filter + Controls -->
+          <div class="d-flex gap-2 align-items-center mb-3 flex-wrap">
+            <div
+              class="btn-group btn-group-sm"
+              role="group"
+              aria-label="filter"
+            >
+              <button
+                id="btnAll"
+                class="btn btn-outline-primary active"
+                data-filter="all"
+              >
+                Semua
+              </button>
+              <button
+                id="btnActive"
+                class="btn btn-outline-warning"
+                data-filter="active"
+              >
+                Belum Selesai
+              </button>
+              <button
+                id="btnCompleted"
+                class="btn btn-outline-success"
+                data-filter="completed"
+              >
+                Selesai
+              </button>
+            </div>
+
+            <div class="ms-auto d-flex gap-2">
+              <button id="clearCompletedBtn" class="btn btn-sm btn-danger">
+                <i class="bi bi-trash"></i> Hapus Selesai
+              </button>
+              <button
+                id="btnEnableDragHint"
+                class="btn btn-sm btn-outline-secondary"
+                disabled
+                title="Tarik untuk urutkan saat filter: Semua"
+              >
+                <i class="bi bi-arrows-move"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Progress -->
+          <div class="mb-3">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <div class="small small-muted">Progres</div>
+              <div id="progressText" class="small small-muted">
+                0 / 0 selesai
+              </div>
+            </div>
+            <div class="progress" style="height: 10px">
+              <div
+                id="progressBar"
+                class="progress-bar"
+                role="progressbar"
+                style="width: 0%"
+              ></div>
+            </div>
+          </div>
+
+          <!-- Empty state -->
+          <div
+            id="emptyState"
+            class="alert alert-info text-center d-none"
+            role="alert"
+          >
+            <i class="bi bi-emoji-smile display-6"></i>
+            <div class="mt-2">
+              ✨ Belum ada todo. Tambahkan sesuatu yang seru!
+            </div>
+          </div>
+
+          <!-- Todo list -->
+          <ul id="todoList" class="list-group mb-2"></ul>
+
+          <!-- Footer small -->
+          <div
+            class="d-flex justify-content-between align-items-center small-muted"
+          >
+            <div id="countText">0 tugas</div>
+            <div>Made with <i class="bi bi-heart-fill text-danger"></i></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast container -->
+    <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1200">
+      <div id="toastContainer" class="toast-container"></div>
+    </div>
+
+    <!-- Bootstrap JS bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+      // ---------- State ----------
+      let todos = []; // { id, todo, completed }
+      let currentFilter = "all";
+      let currentSearch = "";
+      let sortableInstance = null;
+      let lastAddedId = null;
+      const perfs = {
+        animateAdd: true,
+        animateDelete: true,
+        animateCheck: true,
+      };
+
+      // ---------- Elements ----------
+      const form = document.getElementById("formData");
+      const inputTodo = document.getElementById("inputTodo");
+      const todoList = document.getElementById("todoList");
+      const searchInput = document.getElementById("searchInput");
+      const clearSearchBtn = document.getElementById("clearSearch");
+      const emptyState = document.getElementById("emptyState");
+      const progressBar = document.getElementById("progressBar");
+      const progressText = document.getElementById("progressText");
+      const filterBtns = document.querySelectorAll("[data-filter]");
+      const clearCompletedBtn = document.getElementById("clearCompletedBtn");
+      const toggleModeBtn = document.getElementById("toggleMode");
+      const mainCard = document.querySelector(".card.main");
+      const btnEnableDragHint = document.getElementById("btnEnableDragHint");
+      const toastContainer = document.getElementById("toastContainer");
+      const countText = document.getElementById("countText");
+
+      // ---------- Utilities ----------
+      function saveTodos() {
+        localStorage.setItem("todos_v2", JSON.stringify(todos));
+      }
+      function loadTodos() {
+        const s = localStorage.getItem("todos_v2");
+        if (s) {
+          try {
+            todos = JSON.parse(s);
+          } catch (e) {
+            todos = [];
+          }
+        }
+        // load dark-mode pref
+        const dm = localStorage.getItem("todo_dark_mode");
+        if (dm === "1") {
+          document.body.classList.add("dark-mode");
+          mainCard.classList.add("dark");
+        }
+      }
+      function showToast(msg, type = "primary") {
+        const el = document.createElement("div");
+        el.className = `toast align-items-center text-bg-${type} border-0`;
+        el.role = "alert";
+        el.ariaLive = "assertive";
+        el.ariaAtomic = "true";
+        el.innerHTML = `<div class="d-flex"><div class="toast-body">${escapeHtml(
+          msg
+        )}</div>
+        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button></div>`;
+        toastContainer.appendChild(el);
+        const bs = new bootstrap.Toast(el, { delay: 1800 });
+        bs.show();
+        el.addEventListener("hidden.bs.toast", () => el.remove());
+      }
+      function escapeHtml(text = "") {
+        return text.replace(/[&<>"'`=\/]/g, function (s) {
+          return {
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;",
+            "'": "&#39;",
+            "/": "&#x2F;",
+            "`": "&#x60;",
+            "=": "&#x3D;",
+          }[s];
+        });
+      }
+      function uid() {
+        return String(Date.now()) + Math.random().toString(36).slice(2, 6);
+      }
+
+      // ---------- Render ----------
+      function renderTodos() {
+        // apply filter + search
+        const filtered = todos.filter((item) => {
+          if (currentFilter === "completed" && !item.completed) return false;
+          if (currentFilter === "active" && item.completed) return false;
+          if (currentSearch && !item.todo.toLowerCase().includes(currentSearch))
+            return false;
+          return true;
+        });
+
+        // render list
+        todoList.innerHTML = "";
+        if (filtered.length === 0) {
+          emptyState.classList.remove("d-none");
+        } else {
+          emptyState.classList.add("d-none");
+          filtered.forEach((item) => {
+            const li = document.createElement("li");
+            li.className = "list-group-item";
+            li.dataset.id = item.id;
+            if (document.body.classList.contains("dark-mode"))
+              li.classList.add("dark");
+
+            // inner structure
+            li.innerHTML = `
+            <div class="d-flex align-items-center flex-fill">
+              <span class="drag-handle me-2"><i class="bi bi-grip-vertical"></i></span>
+              <div class="form-check flex-grow-1 d-flex align-items-center">
+                <input class="form-check-input me-2" type="checkbox" id="cb-${
+                  item.id
+                }" ${item.completed ? "checked" : ""}>
+                <label class="form-check-label flex-grow-1 ${
+                  item.completed
+                    ? "text-decoration-line-through text-muted"
+                    : ""
+                }" for="cb-${item.id}" style="cursor:pointer">
+                  ${escapeHtml(item.todo)}
+                </label>
+              </div>
+            </div>
+            <div class="todo-actions btn-group ms-2" role="group">
+              <button class="btn btn-sm btn-outline-secondary btn-edit" title="Edit"><i class="bi bi-pencil"></i></button>
+              <button class="btn btn-sm btn-outline-danger btn-delete" title="Hapus"><i class="bi bi-trash"></i></button>
+            </div>
+          `;
+
+            // add to DOM
+            todoList.appendChild(li);
+
+            // event: checkbox
+            const cb = li.querySelector(".form-check-input");
+            cb.addEventListener("change", (e) => {
+              const idx = todos.findIndex((t) => t.id === item.id);
+              if (idx > -1) {
+                todos[idx].completed = e.target.checked;
+                saveTodos();
+                // bounce animation
+                if (perfs.animateCheck) {
+                  li.classList.add("bounce");
+                  li.addEventListener(
+                    "animationend",
+                    () => li.classList.remove("bounce"),
+                    { once: true }
+                  );
+                }
+                renderTodos();
+              }
+            });
+
+            // edit
+            li.querySelector(".btn-edit").addEventListener("click", () => {
+              const newTitle = prompt("Edit todo:", item.todo);
+              if (newTitle !== null) {
+                const trimmed = newTitle.trim();
+                if (!trimmed) {
+                  showToast("Judul tidak boleh kosong", "warning");
+                  return;
+                }
+                const duplicate = todos.some(
+                  (t) =>
+                    t.id !== item.id &&
+                    t.todo.toLowerCase() === trimmed.toLowerCase()
+                );
+                if (duplicate) {
+                  showToast("Todo dengan judul yang sama sudah ada", "warning");
+                  return;
+                }
+                item.todo = trimmed;
+                saveTodos();
+                renderTodos();
+                showToast("Todo diperbarui", "success");
+              }
+            });
+
+            // delete with animation
+            li.querySelector(".btn-delete").addEventListener("click", () => {
+              if (!confirm("Hapus todo ini?")) return;
+              if (perfs.animateDelete) {
+                li.classList.add("animate-out");
+                li.addEventListener(
+                  "animationend",
+                  () => {
+                    todos = todos.filter((t) => t.id !== item.id);
+                    saveTodos();
+                    renderTodos();
+                    showToast("Todo dihapus", "danger");
+                  },
+                  { once: true }
+                );
+              } else {
+                todos = todos.filter((t) => t.id !== item.id);
+                saveTodos();
+                renderTodos();
+                showToast("Todo dihapus", "danger");
+              }
+            });
+          });
+        }
+
+        // progress
+        const total = todos.length;
+        const done = todos.filter((t) => t.completed).length;
+        const pct = total === 0 ? 0 : Math.round((done / total) * 100);
+        progressBar.style.width = pct + "%";
+        progressBar.ariaValueNow = pct;
+        progressBar.textContent = pct > 8 ? pct + "%" : "";
+        progressText.textContent = `${done} / ${total} selesai`;
+        countText.textContent = `${total} tugas`;
+
+        // enable drag only on filter 'all'
+        initSortable(currentFilter === "all");
+
+        btnEnableDragHint.disabled = currentFilter !== "all";
+        btnEnableDragHint.title =
+          currentFilter === "all"
+            ? "Tarik untuk mengurutkan todo"
+            : "Urutkan hanya tersedia pada filter: Semua";
+
+        // if a lastAddedId exists, animate it
+        if (lastAddedId) {
+          const el = todoList.querySelector(`[data-id="${lastAddedId}"]`);
+          if (el && perfs.animateAdd) {
+            el.classList.add("animate-in");
+            // remove class after animationend
+            el.addEventListener(
+              "animationend",
+              () => el.classList.remove("animate-in"),
+              { once: true }
+            );
+          }
+          lastAddedId = null;
+        }
+      }
+
+      // ---------- Sortable ----------
+      function initSortable(enabled) {
+        if (sortableInstance) {
+          try {
+            sortableInstance.destroy();
+          } catch (e) {}
+          sortableInstance = null;
+        }
+        if (!enabled) return;
+        sortableInstance = Sortable.create(todoList, {
+          handle: ".drag-handle",
+          animation: 150,
+          ghostClass: "sortable-ghost",
+          onEnd: (evt) => {
+            // reorder global todos according to DOM
+            const newOrderIds = Array.from(todoList.children)
+              .map((li) => li.dataset.id)
+              .filter(Boolean);
+            const newTodos = [];
+            newOrderIds.forEach((id) => {
+              const found = todos.find((t) => t.id === id);
+              if (found) newTodos.push(found);
+            });
+            // fallback: append remaining
+            const remaining = todos.filter((t) => !newOrderIds.includes(t.id));
+            todos = [...newTodos, ...remaining];
+            saveTodos();
+            renderTodos();
+            showToast("Urutan disimpan", "success");
+          },
+        });
+      }
+
+      // ---------- Events ----------
+      form.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const val = inputTodo.value.trim();
+        if (!val) {
+          showToast("Todo tidak boleh kosong", "warning");
+          return;
+        }
+        const exists = todos.some(
+          (t) => t.todo.toLowerCase() === val.toLowerCase()
+        );
+        if (exists) {
+          showToast("Todo dengan judul yang sama sudah ada", "warning");
+          return;
+        }
+        const id = uid();
+        todos.unshift({ id, todo: val, completed: false });
+        inputTodo.value = "";
+        lastAddedId = id;
+        saveTodos();
+        renderTodos();
+        showToast("Todo ditambahkan", "success");
+        inputTodo.focus();
+      });
+
+      searchInput.addEventListener("input", () => {
+        currentSearch = searchInput.value.trim().toLowerCase();
+        renderTodos();
+      });
+      clearSearchBtn.addEventListener("click", () => {
+        searchInput.value = "";
+        currentSearch = "";
+        renderTodos();
+        searchInput.focus();
+      });
+
+      filterBtns.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          filterBtns.forEach((b) => b.classList.remove("active"));
+          btn.classList.add("active");
+          const f = btn.dataset.filter;
+          currentFilter =
+            f === "active" ? "active" : f === "completed" ? "completed" : "all";
+          renderTodos();
+        });
+      });
+
+      clearCompletedBtn.addEventListener("click", () => {
+        if (!confirm("Hapus semua todo yang sudah selesai?")) return;
+        const before = todos.length;
+        todos = todos.filter((t) => !t.completed);
+        saveTodos();
+        renderTodos();
+        showToast(`Dihapus ${before - todos.length} item selesai`, "danger");
+      });
+
+      toggleModeBtn.addEventListener("click", () => {
+        document.body.classList.toggle("dark-mode");
+        mainCard.classList.toggle("dark");
+        // persist preference
+        if (document.body.classList.contains("dark-mode"))
+          localStorage.setItem("todo_dark_mode", "1");
+        else localStorage.removeItem("todo_dark_mode");
+        renderTodos();
+      });
+
+      // init
+      loadTodos();
+      renderTodos();
+
+      // Expose for debugging (optional)
+      // window.todos = todos;
+    </script>
+  </body>
+</html>
